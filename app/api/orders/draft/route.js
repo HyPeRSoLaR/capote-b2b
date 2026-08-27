@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { decryptSession } from '@/lib/session';
+import { decryptSession, resolveWarehouse, isAdminSession } from '@/lib/session';
 import { createDraftOrder } from '@/lib/orders';
 import { shopifyGraphQL } from '@/lib/shopify';
 import { calculateShippingCost } from '@/lib/shipping';
@@ -54,6 +54,17 @@ export async function POST(request) {
       return NextResponse.json(
         { error: 'Invalid order payload or warehouse missing.' },
         { status: 400 }
+      );
+    }
+
+    // 3b. Enforce regional sourcing server-side: non-admin accounts may only
+    // order from their assigned regional warehouse, regardless of what the
+    // client sends. Admins (not impersonating) may source from any warehouse.
+    const assignedWarehouse = resolveWarehouse(session);
+    if (!isAdminSession(session) && String(warehouse).toLowerCase() !== assignedWarehouse.toLowerCase()) {
+      return NextResponse.json(
+        { error: `Orders for your account are fulfilled exclusively from the ${assignedWarehouse} warehouse.` },
+        { status: 403 }
       );
     }
 

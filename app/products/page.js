@@ -589,11 +589,17 @@ export default function CatalogPage() {
 
             <div style={{ marginTop: 12, marginBottom: 16 }}>
               <label className="form-label">Warehouse</label>
-              <select className="toolbar-select" value={bulkWarehouse} onChange={e => setBulkWarehouse(e.target.value)}>
-                <option value="barcelona">Barcelona (EUR)</option>
-                <option value="japan">Japan (JPY)</option>
-                <option value="canada">Canada (CAD)</option>
-              </select>
+              {isAdmin ? (
+                <select className="toolbar-select" value={bulkWarehouse} onChange={e => setBulkWarehouse(e.target.value)}>
+                  <option value="barcelona">Barcelona (EUR)</option>
+                  <option value="japan">Japan (JPY)</option>
+                  <option value="canada">Canada (CAD)</option>
+                </select>
+              ) : (
+                <div style={{ fontSize: '13.5px', fontWeight: 500, padding: '10px 14px', border: '1px solid var(--border)', borderRadius: '6px', background: '#fff', display: 'inline-block' }}>
+                  📦 Sourced from <strong style={{ textTransform: 'capitalize' }}>{userWarehouse}</strong>
+                </div>
+              )}
             </div>
 
             <div className="modal-footer">

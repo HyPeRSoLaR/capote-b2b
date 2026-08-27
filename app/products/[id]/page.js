@@ -334,7 +334,10 @@ export default function ProductConfiguratorPage() {
 
   const basePrice = activeVariant ? activeVariant.price : 0;
   const currentB2BPrice = basePrice * (1 - discountPercent / 100);
-  const isAvailable = Boolean(activeVariant && activeVariant.stock && Object.values(activeVariant.stock).some(s => s > 0));
+  // Availability reflects the sourcing warehouse the account can actually buy
+  // from — never global stock. Keeps the badge consistent with the Add to Cart
+  // button (both key off selectedWarehouse).
+  const isAvailable = Boolean(activeVariant && (activeVariant.stock?.[selectedWarehouse] || 0) > 0);
 
   return (
     <div style={{ paddingBottom: totalItems > 0 ? '100px' : '40px' }}>
