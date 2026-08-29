@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { decryptSession } from '@/lib/session';
-import { getOrderById } from '@/lib/orders';
+import { getOrderById, getAgentClientEmails } from '@/lib/orders';
 
 export async function GET(request, { params }) {
   try {
@@ -30,14 +30,29 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Order not found.' }, { status: 404 });
     }
 
-    // 3. Optional: Verify that the user has permission to see this order
-    // If the user is NOT admin, they should only see their own orders.
+    // 3. Verify that the user has permission to see this order
+    // - Admin: can see all orders
+    // - Customer: can see their own orders
+    // - Agent: can see orders belonging to their clients
     const isAdmin = session.tags?.some(t => ['b2b-admin', 'admin'].includes(t.toLowerCase())) ||
       session.email?.toLowerCase() === 'info@capoteyewear.com' ||
       session.email?.toLowerCase() === 'deanmoriarty190@gmail.com';
 
     if (!isAdmin && order.customer?.email?.toLowerCase() !== session.email?.toLowerCase()) {
-      return NextResponse.json({ error: 'Access denied to this order.' }, { status: 403 });
+      const isAgent = (session.tags || []).some(t => {
+        const lt = t.toLowerCase();
+        return lt === 'agent' || lt.startsWith('agent_');
+      });
+
+      if (isAgent) {
+        const clientEmails = await getAgentClientEmails(session.tags, session.email);
+        const orderCustomerEmail = (order.customer?.email || '').toLowerCase();
+        if (!clientEmails.has(orderCustomerEmail)) {
+          return NextResponse.json({ error: 'Access denied to this order.' }, { status: 403 });
+        }
+      } else {
+        return NextResponse.json({ error: 'Access denied to this order.' }, { status: 403 });
+      }
     }
 
     return NextResponse.json({ success: true, order });
