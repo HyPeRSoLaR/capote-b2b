@@ -132,10 +132,6 @@ export default function AccountPage() {
                 <span className="info-label">Email Address</span>
                 <span className="info-value">{profile.email}</span>
               </div>
-              <div className="info-row">
-                <span className="info-label">Wholesale Discount</span>
-                <span className="info-value" style={{ color: 'var(--accent-gold)', fontWeight: 600 }}>{profile.discountPercent}% off retail</span>
-              </div>
 
               {profile.defaultAddress && (
                 <div style={{ marginTop: '24px' }}>
