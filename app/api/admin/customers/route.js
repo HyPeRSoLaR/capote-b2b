@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { decryptSession } from '@/lib/session';
+import { decryptSession, isAgentSession } from '@/lib/session';
 import { shopifyGraphQL, shopifyREST } from '@/lib/shopify';
 import { sendB2BPasscodeEmail } from '@/lib/email';
 
@@ -15,9 +15,7 @@ function isAdminUser(session) {
 
 function isAgentUser(session) {
   if (!session) return false;
-  const tags = (session.tags || []).map(t => t.toLowerCase());
-  // Only real agent roles pass. No generic-substring or single-name special cases.
-  return tags.some(t => t.startsWith('agent_') || t === 'agent' || t === 'b2b-admin-agent');
+  return isAgentSession(session.tags || []);
 }
 
 export async function GET() {

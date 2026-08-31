@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { decryptSession } from '@/lib/session';
+import { decryptSession, isAgentSession } from '@/lib/session';
 import { getCustomerOrders, getAllB2BOrders, getAgentOrders } from '@/lib/orders';
 
 export async function GET() {
@@ -29,8 +29,7 @@ export async function GET() {
       session.email?.toLowerCase() === 'info@capoteyewear.com' ||
       session.email?.toLowerCase() === 'deanmoriarty190@gmail.com';
 
-    const isAgent = !isAdmin &&
-      (session.tags || []).some(t => t.toLowerCase().startsWith('agent_') || t.toLowerCase() === 'agent');
+    const isAgent = !isAdmin && isAgentSession(session.tags || []);
 
     const ordersData = isAdmin
       ? await getAllB2BOrders()

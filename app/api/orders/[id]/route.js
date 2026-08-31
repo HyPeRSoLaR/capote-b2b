@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { decryptSession } from '@/lib/session';
+import { decryptSession, isAgentSession } from '@/lib/session';
 import { getOrderById, getAgentClientEmails } from '@/lib/orders';
 
 export async function GET(request, { params }) {
@@ -39,10 +39,7 @@ export async function GET(request, { params }) {
       session.email?.toLowerCase() === 'deanmoriarty190@gmail.com';
 
     if (!isAdmin && order.customer?.email?.toLowerCase() !== session.email?.toLowerCase()) {
-      const isAgent = (session.tags || []).some(t => {
-        const lt = t.toLowerCase();
-        return lt === 'agent' || lt.startsWith('agent_');
-      });
+      const isAgent = isAgentSession(session.tags || []);
 
       if (isAgent) {
         const clientEmails = await getAgentClientEmails(session.tags, session.email);

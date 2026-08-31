@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { isAgentSession } from '@/lib/session';
 
 export default function Navbar({ user, activeTab, cartCount = 0, onCartClick, currency: propCurrency, onCurrencyChange }) {
   const router = useRouter();
@@ -58,7 +59,7 @@ export default function Navbar({ user, activeTab, cartCount = 0, onCartClick, cu
   };
 
   const isAdmin = Boolean(user?.tags?.some(t => ['b2b-admin', 'admin'].includes(t.toLowerCase())) && !user?.impersonatedBy);
-  const isAgent = Boolean(user?.tags?.some(t => t.toLowerCase().startsWith('agent_') || t.toLowerCase() === 'agent') && !user?.impersonatedBy);
+  const isAgent = Boolean(isAgentSession(user?.tags || []) && !user?.impersonatedBy);
 
   return (
     <nav className="navbar">
