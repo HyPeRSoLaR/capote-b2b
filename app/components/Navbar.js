@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { isAgentSession } from '@/lib/session';
+import { isAgentSession } from '@/lib/roles';
 
 export default function Navbar({ user, activeTab, cartCount = 0, onCartClick, currency: propCurrency, onCurrencyChange }) {
   const router = useRouter();
