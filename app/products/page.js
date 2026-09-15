@@ -294,7 +294,11 @@ export default function CatalogPage() {
       }
     }
 
-    const itemsByWarehouse = items.reduce((acc, item) => {
+    const normalizedItems = !isAdmin
+      ? items.map(item => ({ ...item, warehouse: (user?.warehouse || 'barcelona').toLowerCase() }))
+      : items;
+
+    const itemsByWarehouse = normalizedItems.reduce((acc, item) => {
       if (!acc[item.warehouse]) acc[item.warehouse] = [];
       const itemPayload = { variantId: item.variantId, quantity: item.quantity };
       if (item.isCustomPrice || item.price !== undefined) {

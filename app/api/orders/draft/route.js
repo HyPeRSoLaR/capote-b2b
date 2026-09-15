@@ -48,7 +48,7 @@ export async function POST(request) {
     // 3. Parse request body
     const body = await request.json();
     const items = body.items || body.lineItems;
-    const warehouse = body.warehouse;
+    let warehouse = body.warehouse;
 
     if (!items || !Array.isArray(items) || items.length === 0 || !warehouse) {
       return NextResponse.json(
@@ -61,11 +61,11 @@ export async function POST(request) {
     // order from their assigned regional warehouse, regardless of what the
     // client sends. Admins (not impersonating) may source from any warehouse.
     const assignedWarehouse = resolveWarehouse(session);
-    if (!isAdminSession(session) && String(warehouse).toLowerCase() !== assignedWarehouse.toLowerCase()) {
-      return NextResponse.json(
-        { error: `Orders for your account are fulfilled exclusively from the ${assignedWarehouse} warehouse.` },
-        { status: 403 }
-      );
+    if (!isAdminSession(session)) {
+      if (String(warehouse).toLowerCase() !== assignedWarehouse.toLowerCase()) {
+        console.warn(`[Draft Order] Coercing warehouse for ${session.email} from "${warehouse}" to assigned warehouse "${assignedWarehouse}".`);
+      }
+      warehouse = assignedWarehouse;
     }
 
     // Determine currency based on customer session location & tag overrides
