@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { decryptSession, resolveWarehouse, isAdminSession } from '@/lib/session';
+import { decryptSession, resolveWarehouse, isAdminSession, allowedWarehouses } from '@/lib/session';
 import { createDraftOrder } from '@/lib/orders';
 import { shopifyGraphQL } from '@/lib/shopify';
 import { calculateShippingCost } from '@/lib/shipping';
@@ -57,14 +57,12 @@ export async function POST(request) {
       );
     }
 
-    // 3b. Enforce regional sourcing server-side: non-admin accounts may only
-    // order from their assigned regional warehouse, regardless of what the
-    // client sends. Admins (not impersonating) may source from any warehouse.
+    // 3b. Enforce regional sourcing server-side: accounts may only order from their
+    // allowed regional warehouses. Admins and warehouse-any accounts may source from any warehouse.
     const assignedWarehouse = resolveWarehouse(session);
-    if (!isAdminSession(session)) {
-      if (String(warehouse).toLowerCase() !== assignedWarehouse.toLowerCase()) {
-        console.warn(`[Draft Order] Coercing warehouse for ${session.email} from "${warehouse}" to assigned warehouse "${assignedWarehouse}".`);
-      }
+    const allowed = allowedWarehouses(session).map(w => w.toLowerCase());
+    if (!isAdminSession(session) && !allowed.includes(String(warehouse).toLowerCase())) {
+      console.warn(`[Draft Order] Coercing warehouse for ${session.email} from "${warehouse}" to assigned warehouse "${assignedWarehouse}".`);
       warehouse = assignedWarehouse;
     }
 

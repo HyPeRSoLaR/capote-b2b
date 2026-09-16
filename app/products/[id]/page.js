@@ -32,6 +32,11 @@ export default function ProductConfiguratorPage() {
   const userCurrency = user?.currency || 'EUR';
   const userWarehouse = user?.warehouse?.toLowerCase() || 'barcelona';
   const isAdmin = user?.tags?.some(t => ['b2b-admin', 'admin'].includes(t.toLowerCase())) && !user?.impersonatedBy;
+  const userAllowedWarehouses = user?.allowedWarehouses && user.allowedWarehouses.length > 0
+    ? user.allowedWarehouses.map(w => w.toLowerCase())
+    : (isAdmin ? ['barcelona', 'japan', 'canada'] : [userWarehouse]);
+
+  const visibleWarehouses = userAllowedWarehouses;
 
   const convertPrice = (eurAmount, curr) => {
     const amt = parseFloat(eurAmount || 0);
@@ -47,8 +52,6 @@ export default function ProductConfiguratorPage() {
     if (curr === 'USD') return '$';
     return '€';
   };
-
-  const visibleWarehouses = isAdmin ? ['barcelona', 'japan', 'canada'] : [userWarehouse];
 
   useEffect(() => {
     if (userWarehouse) {
@@ -247,7 +250,16 @@ export default function ProductConfiguratorPage() {
     const items = Object.values(cart);
     if (!items.length) return;
     setSubmitting(true);
-    const itemsByWarehouse = items.reduce((acc, item) => {
+    const normalizedItems = userAllowedWarehouses.length === 1
+      ? items.map(item => ({ ...item, warehouse: userWarehouse }))
+      : items.map(item => ({
+          ...item,
+          warehouse: item.warehouse && userAllowedWarehouses.includes(item.warehouse.toLowerCase())
+            ? item.warehouse.toLowerCase()
+            : userWarehouse
+        }));
+
+    const itemsByWarehouse = normalizedItems.reduce((acc, item) => {
       if (!acc[item.warehouse]) acc[item.warehouse] = [];
       const itemPayload = {
         variantId: item.variantId,

@@ -21,6 +21,9 @@ export default function CatalogPage() {
   const userCurrency = user?.currency || 'EUR';
   const userWarehouse = user?.warehouse?.toLowerCase() || 'barcelona';
   const isAdmin = user?.tags?.some(t => ['b2b-admin', 'admin'].includes(t.toLowerCase())) && !user?.impersonatedBy;
+  const userAllowedWarehouses = user?.allowedWarehouses && user.allowedWarehouses.length > 0
+    ? user.allowedWarehouses.map(w => w.toLowerCase())
+    : (isAdmin ? ['barcelona', 'japan', 'canada'] : [userWarehouse]);
 
   const convertPrice = (eurAmount, curr) => {
     const amt = parseFloat(eurAmount || 0);
@@ -294,9 +297,14 @@ export default function CatalogPage() {
       }
     }
 
-    const normalizedItems = !isAdmin
+    const normalizedItems = userAllowedWarehouses.length === 1
       ? items.map(item => ({ ...item, warehouse: (user?.warehouse || 'barcelona').toLowerCase() }))
-      : items;
+      : items.map(item => ({
+          ...item,
+          warehouse: item.warehouse && userAllowedWarehouses.includes(item.warehouse.toLowerCase())
+            ? item.warehouse.toLowerCase()
+            : (user?.warehouse || 'barcelona').toLowerCase()
+        }));
 
     const itemsByWarehouse = normalizedItems.reduce((acc, item) => {
       if (!acc[item.warehouse]) acc[item.warehouse] = [];
@@ -446,8 +454,8 @@ export default function CatalogPage() {
                     const b2bPriceRaw = firstVariant ? firstVariant.price * (1 - discountPercent / 100) : null;
                     const b2bPrice = b2bPriceRaw ? convertPrice(b2bPriceRaw, userCurrency).toLocaleString(undefined, { minimumFractionDigits: userCurrency === 'JPY' ? 0 : 2 }) : null;
                     const totalStock = variants.reduce((sum, v) => {
-                      if (isAdmin) {
-                        return sum + (v.stock?.barcelona || 0) + (v.stock?.japan || 0) + (v.stock?.canada || 0);
+                      if (userAllowedWarehouses.length > 1) {
+                        return sum + userAllowedWarehouses.reduce((wSum, w) => wSum + (v.stock?.[w] || 0), 0);
                       } else {
                         return sum + (v.stock?.[userWarehouse] || 0);
                       }
@@ -593,11 +601,14 @@ export default function CatalogPage() {
 
             <div style={{ marginTop: 12, marginBottom: 16 }}>
               <label className="form-label">Warehouse</label>
-              {isAdmin ? (
+              {userAllowedWarehouses.length > 1 ? (
                 <select className="toolbar-select" value={bulkWarehouse} onChange={e => setBulkWarehouse(e.target.value)}>
-                  <option value="barcelona">Barcelona (EUR)</option>
-                  <option value="japan">Japan (JPY)</option>
-                  <option value="canada">Canada (CAD)</option>
+                  {userAllowedWarehouses.map(w => {
+                    const label = w === 'barcelona' ? 'Barcelona (EUR)' : w === 'japan' ? 'Japan (JPY)' : w === 'canada' ? 'Canada (CAD)' : (w.charAt(0).toUpperCase() + w.slice(1));
+                    return (
+                      <option key={w} value={w}>{label}</option>
+                    );
+                  })}
                 </select>
               ) : (
                 <div style={{ fontSize: '13.5px', fontWeight: 500, padding: '10px 14px', border: '1px solid var(--border)', borderRadius: '6px', background: '#fff', display: 'inline-block' }}>

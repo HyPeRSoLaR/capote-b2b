@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { decryptSession } from '@/lib/session';
+import { decryptSession, allowedWarehouses } from '@/lib/session';
 
 export async function GET() {
   try {
@@ -77,6 +77,7 @@ export async function GET() {
         countryCode: country,
         currency,
         warehouse,
+        allowedWarehouses: allowedWarehouses(session),
       },
       discountPercent,
     });
