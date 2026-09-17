@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { decryptSession, allowedWarehouses } from '@/lib/session';
+import { decryptSession, allowedWarehouses, resolveWarehouse } from '@/lib/session';
 
 export async function GET() {
   try {
@@ -37,20 +37,16 @@ export async function GET() {
       }
     }
 
-    // Determine currency and warehouse based on country code
+    // Determine currency based on country code
     const country = session.countryCode || 'ES';
     let currency = 'EUR';
-    let warehouse = 'Barcelona';
 
     if (country === 'CA') {
       currency = 'CAD';
-      warehouse = 'Canada';
     } else if (country === 'JP') {
       currency = 'JPY';
-      warehouse = 'Japan';
     } else if (country === 'US') {
       currency = 'USD';
-      warehouse = 'Barcelona'; // Sourced from Barcelona, billed in USD
     }
 
     // Support tag overrides for currency
@@ -60,12 +56,9 @@ export async function GET() {
       else if (lt === 'cad' || lt === 'currency-cad') currency = 'CAD';
       else if (lt === 'jpy' || lt === 'currency-jpy') currency = 'JPY';
       else if (lt === 'eur' || lt === 'currency-eur') currency = 'EUR';
-      
-      // Sourcing logistics warehouse tag overrides
-      if (lt === 'warehouse-barcelona' || lt === 'barcelona') warehouse = 'Barcelona';
-      else if (lt === 'warehouse-japan' || lt === 'japan') warehouse = 'Japan';
-      else if (lt === 'warehouse-canada' || lt === 'canada') warehouse = 'Canada';
     }
+
+    const warehouse = resolveWarehouse(session);
 
     return NextResponse.json({
       authenticated: true,
