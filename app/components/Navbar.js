@@ -36,11 +36,12 @@ export default function Navbar({ user, activeTab, cartCount = 0, onCartClick, cu
 
   const handleLogout = async () => {
     try {
-      await fetch('/api/auth/session', { method: 'DELETE' });
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (e) {
+      console.error('Logout error:', e);
+    } finally {
       router.push('/auth/login');
       router.refresh();
-    } catch (e) {
-      console.error(e);
     }
   };
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { decryptSession, allowedWarehouses, resolveWarehouse } from '@/lib/session';
+import { getB2BCustomer } from '@/lib/shopify';
 
 export async function GET() {
   try {
@@ -16,11 +17,25 @@ export async function GET() {
       return NextResponse.json({ authenticated: false });
     }
 
+    // Re-fetch customer from Shopify to use live tags for role, warehouse, and discount
+    let tags = session.tags || [];
+    try {
+      if (session.email) {
+        const liveCustomer = await getB2BCustomer(session.email);
+        if (liveCustomer?.tags && Array.isArray(liveCustomer.tags)) {
+          tags = liveCustomer.tags;
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to refresh live tags from Shopify, falling back to cookie tags:', err.message);
+    }
+
+    const activeSession = { ...session, tags };
+
     // Determine discount level from customer tags.
     // Priority: a Distributor-XX tag (distributor pays XX% OFF WHOLESALE, stacked on the
     // standard 50%) overrides the plain B2B-Discount-XX tier.
     let discountPercent = 50; // default 50% discount
-    const tags = session.tags || [];
     const distMatch = tags
       .map(t => t.match(/Distributor-(\d+(?:\.\d+)?)/i))
       .find(Boolean);
@@ -58,7 +73,7 @@ export async function GET() {
       else if (lt === 'eur' || lt === 'currency-eur') currency = 'EUR';
     }
 
-    const warehouse = resolveWarehouse(session);
+    const warehouse = resolveWarehouse(activeSession);
 
     return NextResponse.json({
       authenticated: true,
@@ -70,7 +85,7 @@ export async function GET() {
         countryCode: country,
         currency,
         warehouse,
-        allowedWarehouses: allowedWarehouses(session),
+        allowedWarehouses: allowedWarehouses(activeSession),
       },
       discountPercent,
     });
