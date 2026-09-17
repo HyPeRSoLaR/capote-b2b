@@ -206,7 +206,7 @@ export default function CatalogPage() {
     if (!bulkText.trim()) { setBulkError('Please enter at least one SKU.'); return; }
     const skuMap = {};
     products.forEach(p => p.variants.forEach(v => {
-      if (v.sku) skuMap[v.sku.trim().toLowerCase()] = { variantId: v.id, price: v.price, title: v.title, productTitle: p.title, stock: v.stock };
+      if (v.sku) skuMap[v.sku.trim().toLowerCase()] = { variantId: v.id, price: v.price, b2bPrice: v.b2bPrice, title: v.title, productTitle: p.title, stock: v.stock };
     }));
     const lines = bulkText.split('\n');
     const newCartItems = { ...cart };
@@ -232,17 +232,18 @@ export default function CatalogPage() {
       if (avail <= 0) { outOfStock.push(sku); return; }
       const finalQty = Math.min(qty, avail);
       const cartKey = `${match.variantId}-${bulkWarehouse}`;
-      newCartItems[cartKey] = { variantId: match.variantId, quantity: (newCartItems[cartKey]?.quantity || 0) + finalQty, price: match.price, title: match.title, productTitle: match.productTitle, warehouse: bulkWarehouse };
+      newCartItems[cartKey] = { variantId: match.variantId, quantity: (newCartItems[cartKey]?.quantity || 0) + finalQty, price: match.price, b2bPrice: match.b2bPrice, title: match.title, productTitle: match.productTitle, warehouse: bulkWarehouse };
       countAdded += finalQty;
     });
     setCart(newCartItems);
     localStorage.setItem('capote_b2b_cart', JSON.stringify(newCartItems));
     if (countAdded > 0) {
       Object.values(newCartItems).forEach(item => {
+        const unitPrice = item.b2bPrice != null ? item.b2bPrice : (item.price * (1 - discountPercent / 100));
         fbEvent("AddToCart", {
           content_category: "B2B_wholesale",
           content_ids: [item.sku || item.variantId],
-          value: parseFloat((item.price * (1 - discountPercent / 100)).toFixed(2)),
+          value: parseFloat(unitPrice.toFixed(2)),
           currency: "EUR",
         });
       });
@@ -331,7 +332,9 @@ export default function CatalogPage() {
 
       // Fire Meta Pixel Purchase event with real wholesale total
       const totalOrderWholesale = items.reduce((sum, item) => {
-        const itemUnitPrice = item.price * (1 - discountPercent / 100);
+        const itemUnitPrice = item.isCustomPrice
+          ? item.price
+          : (item.b2bPrice != null ? item.b2bPrice : item.price * (1 - discountPercent / 100));
         return sum + (itemUnitPrice * item.quantity);
       }, 0);
 
@@ -358,7 +361,10 @@ export default function CatalogPage() {
     if (!item) return acc;
     const w = (item.warehouse || 'barcelona').toLowerCase();
     if (!acc[w]) acc[w] = { quantity: 0, wholesale: 0, symbol: w === 'japan' ? '¥' : w === 'canada' ? 'CA$' : '€' };
-    const b2bPrice = (item.price || 0) * (1 - (discountPercent || 50) / 100);
+    const rawPrice = item.price || 0;
+    const b2bPrice = item.isCustomPrice
+      ? rawPrice
+      : (item.b2bPrice != null ? item.b2bPrice : rawPrice * (1 - (discountPercent || 50) / 100));
     let unitAmount = w === 'japan' ? Math.round(b2bPrice * 170) : w === 'canada' ? parseFloat((b2bPrice * 1.5).toFixed(2)) : w === 'us' || w === 'usa' ? parseFloat((b2bPrice * 1.1).toFixed(2)) : parseFloat(b2bPrice.toFixed(2));
     const qty = item.quantity || 0;
     acc[w].quantity += qty;
@@ -451,7 +457,9 @@ export default function CatalogPage() {
                   {pagedProducts.map(product => {
                     const variants = product.variants || [];
                     const firstVariant = variants.length > 0 ? variants[0] : null;
-                    const b2bPriceRaw = firstVariant ? firstVariant.price * (1 - discountPercent / 100) : null;
+                    const b2bPriceRaw = firstVariant
+                      ? (firstVariant.b2bPrice != null ? firstVariant.b2bPrice : firstVariant.price * (1 - discountPercent / 100))
+                      : null;
                     const b2bPrice = b2bPriceRaw ? convertPrice(b2bPriceRaw, userCurrency).toLocaleString(undefined, { minimumFractionDigits: userCurrency === 'JPY' ? 0 : 2 }) : null;
                     const totalStock = variants.reduce((sum, v) => {
                       if (userAllowedWarehouses.length > 1) {

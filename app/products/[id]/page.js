@@ -179,6 +179,7 @@ export default function ProductConfiguratorPage() {
       variantId: activeVariant.id,
       quantity: (newCart[cartKey]?.quantity || 0) + quantity,
       price: baseFramePrice,
+      b2bPrice: activeVariant.b2bPrice,
       title: activeVariant.title || 'Default',
       productTitle: product.title,
       warehouse: selectedWarehouse,
@@ -188,10 +189,14 @@ export default function ProductConfiguratorPage() {
     setCart(newCart);
     localStorage.setItem('capote_b2b_cart', JSON.stringify(newCart));
 
+    const unitPrice = activeVariant.b2bPrice != null
+      ? activeVariant.b2bPrice
+      : baseFramePrice * (1 - discountPercent / 100);
+
     fbEvent("AddToCart", {
       content_category: "B2B_wholesale",
       content_ids: [activeVariant.sku || activeVariant.id],
-      value: parseFloat((baseFramePrice * (1 - discountPercent / 100)).toFixed(2)),
+      value: parseFloat(unitPrice.toFixed(2)),
       currency: "EUR",
     });
 
@@ -287,7 +292,12 @@ export default function ProductConfiguratorPage() {
       }
       setCreatedOrders(ordersResult);
 
-      const totalOrderWholesale = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const totalOrderWholesale = items.reduce((sum, item) => {
+        const unit = item.isCustomPrice
+          ? item.price
+          : (item.b2bPrice != null ? item.b2bPrice : item.price * (1 - discountPercent / 100));
+        return sum + (unit * item.quantity);
+      }, 0);
       fbEvent("Purchase", {
         value: parseFloat(totalOrderWholesale.toFixed(2)),
         currency: "EUR",
@@ -313,8 +323,10 @@ export default function ProductConfiguratorPage() {
     if (!acc[w]) acc[w] = { quantity: 0, wholesale: 0, currencySymbol: w === 'japan' ? '¥' : w === 'canada' ? 'CA$' : '€', currencyCode: w === 'japan' ? 'JPY' : w === 'canada' ? 'CAD' : 'EUR' };
     acc[w].quantity += item.quantity;
     // item.price is the RAW variant price; apply the B2B discount once for display
-    // (same convention as CartModal), unless the item carries a custom price.
-    const unit = item.isCustomPrice ? item.price : item.price * (1 - discountPercent / 100);
+    // (same convention as CartModal), unless the item carries a custom price or b2bPrice.
+    const unit = item.isCustomPrice
+      ? item.price
+      : (item.b2bPrice != null ? item.b2bPrice : item.price * (1 - discountPercent / 100));
     acc[w].wholesale += unit * item.quantity;
     return acc;
   }, {});
@@ -345,7 +357,9 @@ export default function ProductConfiguratorPage() {
   });
 
   const basePrice = activeVariant ? activeVariant.price : 0;
-  const currentB2BPrice = basePrice * (1 - discountPercent / 100);
+  const currentB2BPrice = activeVariant?.b2bPrice != null
+    ? activeVariant.b2bPrice
+    : basePrice * (1 - discountPercent / 100);
   // Availability reflects the sourcing warehouse the account can actually buy
   // from — never global stock. Keeps the badge consistent with the Add to Cart
   // button (both key off selectedWarehouse).

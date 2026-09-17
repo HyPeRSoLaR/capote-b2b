@@ -43,7 +43,9 @@ export default function CartModal({
       };
     }
     const rawPrice = item.price || 0;
-    const baseEurWholesale = item.isCustomPrice ? rawPrice : rawPrice * (1 - discountPercent / 100);
+    const baseEurWholesale = item.isCustomPrice
+      ? rawPrice
+      : (item.b2bPrice != null ? item.b2bPrice : rawPrice * (1 - discountPercent / 100));
     let unitAmount = baseEurWholesale;
     if (w === 'japan') unitAmount = Math.round(baseEurWholesale * 170);
     else if (w === 'canada') unitAmount = parseFloat((baseEurWholesale * 1.5).toFixed(2));
@@ -92,7 +94,9 @@ export default function CartModal({
                   const w = (item.warehouse || 'barcelona').toLowerCase();
                   const sym = w === 'japan' ? '¥' : w === 'canada' ? 'CA$' : w === 'us' || w === 'usa' ? '$' : '€';
                   const rawPrice = item.price || 0;
-                  const baseEurWholesale = item.isCustomPrice ? rawPrice : rawPrice * (1 - discountPercent / 100);
+                  const baseEurWholesale = item.isCustomPrice
+                    ? rawPrice
+                    : (item.b2bPrice != null ? item.b2bPrice : rawPrice * (1 - discountPercent / 100));
                   let unitPrice = baseEurWholesale;
                   if (w === 'japan') unitPrice = Math.round(baseEurWholesale * 170);
                   else if (w === 'canada') unitPrice = parseFloat((baseEurWholesale * 1.5).toFixed(2));

@@ -4,7 +4,13 @@ import { decryptSession, resolveWarehouse, isAdminSession, allowedWarehouses } f
 import { createDraftOrder } from '@/lib/orders';
 import { shopifyGraphQL } from '@/lib/shopify';
 import { calculateShippingCost } from '@/lib/shipping';
-import { getWholesalePrice } from '@/lib/pricing_matrix';
+import { resolveB2BPrice } from '@/lib/pricing';
+
+function parseTierPrice(mf) {
+  if (!mf || mf.value == null || mf.value === '') return null;
+  const num = parseFloat(mf.value);
+  return Number.isFinite(num) && num > 0 ? num : null;
+}
 
 export async function POST(request) {
   try {
@@ -104,6 +110,9 @@ export async function POST(request) {
               price
               sku
               title
+              mfBase: metafield(namespace: "custom", key: "b2b_base") { value }
+              mfDist: metafield(namespace: "custom", key: "b2b_distributer") { value }
+              mfCons: metafield(namespace: "custom", key: "b2b_consignment") { value }
               product {
                 title
               }
@@ -147,19 +156,24 @@ export async function POST(request) {
       const variantSku = dbVariant?.sku || item.sku || ''; // real SKU (was: variant title — broke matrix matching)
       const shopifyPrice = dbVariant ? parseFloat(dbVariant.price) : parseFloat(item.price || 0);
 
-      const lineSheetWP = getWholesalePrice(productTitle, variantSku);
+      const tierPrices = dbVariant ? {
+        base: parseTierPrice(dbVariant.mfBase),
+        distributer: parseTierPrice(dbVariant.mfDist),
+        consignment: parseTierPrice(dbVariant.mfCons),
+      } : null;
+
+      const resolvedPrice = resolveB2BPrice(
+        { tierPrices, productTitle, sku: variantSku },
+        session.tags || []
+      );
 
       // Target unit price the partner pays (store currency, EUR).
-      // FIX: previously the discount was derived from a synthetic retail (WP x 2),
-      // but Shopify applies it against the REAL catalog price when variantId is set,
-      // so every draft charged ~2x wholesale (see audit 17-08-2026, draft #D1068).
       let priceNeedsReview = false;
       let targetPrice;
-      if (lineSheetWP !== null) {
-        // Tier 50 -> WP exactly; other tiers scale relative to the 50% base list.
-        targetPrice = lineSheetWP * ((100 - discountPercent) / 50);
+      if (resolvedPrice !== null) {
+        targetPrice = resolvedPrice;
       } else {
-        // Model missing from the B2B price list: legacy fallback, flagged for manual review.
+        // Model missing from both metafields and B2B price list: legacy fallback, flagged for manual review.
         targetPrice = shopifyPrice * (1 - discountPercent / 100);
         priceNeedsReview = true;
       }
