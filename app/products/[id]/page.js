@@ -181,6 +181,9 @@ export default function ProductConfiguratorPage() {
       price: baseFramePrice,
       b2bPrice: activeVariant.b2bPrice,
       title: activeVariant.title || 'Default',
+      variantTitle: activeVariant.title || 'Default',
+      sku: activeVariant.sku || '',
+      image: activeVariant.image || product.image || null,
       productTitle: product.title,
       warehouse: selectedWarehouse,
       properties: []
@@ -388,12 +391,17 @@ export default function ProductConfiguratorPage() {
         <div className="configurator-grid">
           {/* LEFT: Frame Image */}
           <div className="configurator-gallery-container">
-            <div style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', background: '#f5f3ef', minHeight: '380px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', background: '#eceae6', minHeight: '460px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
               <img
                 src={activeVariant?.image || product.image}
                 alt={product.title}
-                style={{ width: '100%', maxHeight: '500px', objectFit: 'contain', padding: '20px' }}
+                style={{ width: '100%', maxHeight: '620px', objectFit: 'contain', display: 'block' }}
               />
+              {!activeVariant?.image && (
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center', padding: '8px 12px 12px' }}>
+                  Reference photo — this colourway is not pictured
+                </div>
+              )}
             </div>
           </div>
 

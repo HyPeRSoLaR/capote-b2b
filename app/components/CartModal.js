@@ -119,6 +119,47 @@ export default function CartModal({
                         gap: '12px'
                       }}
                     >
+                      {/* Product Thumbnail */}
+                      {item.image ? (
+                        <img
+                          src={item.image}
+                          alt={item.productTitle || item.title || 'Product'}
+                          style={{
+                            width: '48px',
+                            height: '48px',
+                            objectFit: 'cover',
+                            borderRadius: '6px',
+                            border: '1px solid var(--border)',
+                            background: '#fff',
+                            flexShrink: 0
+                          }}
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            if (e.currentTarget.nextSibling) {
+                              e.currentTarget.nextSibling.style.display = 'flex';
+                            }
+                          }}
+                        />
+                      ) : null}
+                      <div
+                        style={{
+                          width: '48px',
+                          height: '48px',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border)',
+                          background: '#e0e0e0',
+                          display: item.image ? 'none' : 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          color: '#9e9e9e',
+                          fontSize: '18px'
+                        }}
+                        aria-hidden="true"
+                      >
+                        👓
+                      </div>
+
                       {/* Product Details */}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -129,9 +170,17 @@ export default function CartModal({
                             {w}
                           </span>
                         </div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                          {item.variantTitle && item.variantTitle !== 'Default Title' ? item.variantTitle : ''} {item.sku ? `(${item.sku})` : ''}
-                        </div>
+                        {(() => {
+                          const rawVariant = (item.variantTitle || item.title || '').trim();
+                          const showColour = rawVariant && rawVariant.toLowerCase() !== 'default title';
+                          const skuPart = item.sku ? `(${item.sku})` : '';
+                          const text = [showColour ? rawVariant : '', skuPart].filter(Boolean).join(' ');
+                          return text ? (
+                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                              {text}
+                            </div>
+                          ) : null;
+                        })()}
                         
                         {/* Unit Price Editing */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>

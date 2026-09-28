@@ -206,7 +206,17 @@ export default function CatalogPage() {
     if (!bulkText.trim()) { setBulkError('Please enter at least one SKU.'); return; }
     const skuMap = {};
     products.forEach(p => p.variants.forEach(v => {
-      if (v.sku) skuMap[v.sku.trim().toLowerCase()] = { variantId: v.id, price: v.price, b2bPrice: v.b2bPrice, title: v.title, productTitle: p.title, stock: v.stock };
+      if (v.sku) skuMap[v.sku.trim().toLowerCase()] = {
+        variantId: v.id,
+        price: v.price,
+        b2bPrice: v.b2bPrice,
+        title: v.title,
+        variantTitle: v.title,
+        sku: v.sku,
+        image: v.image || p.image || null,
+        productTitle: p.title,
+        stock: v.stock
+      };
     }));
     const lines = bulkText.split('\n');
     const newCartItems = { ...cart };
@@ -232,7 +242,18 @@ export default function CatalogPage() {
       if (avail <= 0) { outOfStock.push(sku); return; }
       const finalQty = Math.min(qty, avail);
       const cartKey = `${match.variantId}-${bulkWarehouse}`;
-      newCartItems[cartKey] = { variantId: match.variantId, quantity: (newCartItems[cartKey]?.quantity || 0) + finalQty, price: match.price, b2bPrice: match.b2bPrice, title: match.title, productTitle: match.productTitle, warehouse: bulkWarehouse };
+      newCartItems[cartKey] = {
+        variantId: match.variantId,
+        quantity: (newCartItems[cartKey]?.quantity || 0) + finalQty,
+        price: match.price,
+        b2bPrice: match.b2bPrice,
+        title: match.title,
+        variantTitle: match.variantTitle || match.title,
+        sku: match.sku,
+        image: match.image,
+        productTitle: match.productTitle,
+        warehouse: bulkWarehouse
+      };
       countAdded += finalQty;
     });
     setCart(newCartItems);
