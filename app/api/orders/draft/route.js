@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { decryptSession, resolveWarehouse, isAdminSession, allowedWarehouses } from '@/lib/session';
-import { createDraftOrder } from '@/lib/orders';
+import { createDraftOrder, sanitizeLineProperties } from '@/lib/orders';
 import { shopifyGraphQL } from '@/lib/shopify';
 import { calculateShippingCost } from '@/lib/shipping';
 import { resolveB2BPrice } from '@/lib/pricing';
@@ -131,7 +131,9 @@ export async function POST(request) {
 
       // Calculate customization markups
       let customizationMarkup = 0;
-      const properties = item.properties || item.customAttributes || [];
+      // Only the per-line `Note` is accepted from the client (see sanitizeLineProperties).
+      // The optical/painted/crafted markup below therefore no longer receives client keys.
+      const properties = sanitizeLineProperties(item.properties || item.customAttributes || []);
       const rates = {
         EUR: { optical: -10, handPainted: 50, handCrafted: 50 },
         USD: { optical: -10, handPainted: 50, handCrafted: 50 },
