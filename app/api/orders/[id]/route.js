@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { decryptSession, isAgentSession } from '@/lib/session';
-import { getOrderById, getAgentClientEmails, mergeOrderNotes } from '@/lib/orders';
+import { getOrderById, getAgentClientEmails, mergeOrderNotes, sanitizeLineProperties } from '@/lib/orders';
 import { getB2BCustomer } from '@/lib/shopify';
 
 const MASTER_ADMIN_EMAILS = ['info@capoteyewear.com', 'deanmoriarty190@gmail.com'];
@@ -156,7 +156,13 @@ export async function PUT(request, { params }) {
       const draftOrderGid = `gid://shopify/DraftOrder/${numericId}`;
       // Append the new comment to the existing note instead of overwriting it.
       const mergedNote = note ? mergeOrderNotes(existingOrder.note, note) : '';
-      const updatedDraft = await updateDraftOrder(draftOrderGid, items, mergedNote, appliedDiscount);
+      // Client may only send per-line Note (+ keep Warehouse); everything else is rebuilt server-side.
+      const safeItems = items.map(it => ({
+        ...it,
+        properties: sanitizeLineProperties([...(it.properties || []), ...(it.customAttributes || [])], { allowWarehouse: true }),
+        customAttributes: []
+      }));
+      const updatedDraft = await updateDraftOrder(draftOrderGid, safeItems, mergedNote, appliedDiscount);
       return NextResponse.json({ success: true, draftOrder: updatedDraft });
     } else {
       const orderGid = `gid://shopify/Order/${numericId}`;

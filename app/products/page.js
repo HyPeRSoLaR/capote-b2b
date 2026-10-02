@@ -94,6 +94,16 @@ export default function CatalogPage() {
     localStorage.setItem('capote_b2b_cart', JSON.stringify(updated));
   };
 
+  const handleUpdateCartNote = (cartKey, text) => {
+    const updated = { ...cart };
+    if (updated[cartKey]) {
+      const t = (text || '').slice(0, 500);
+      updated[cartKey] = { ...updated[cartKey], properties: t.trim() ? [{ key: 'Note', value: t }] : [] };
+      setCart(updated);
+      localStorage.setItem('capote_b2b_cart', JSON.stringify(updated));
+    }
+  };
+
   const handleRemoveCartItem = (cartKey) => {
     const updated = { ...cart };
     delete updated[cartKey];
@@ -303,7 +313,8 @@ export default function CatalogPage() {
           sku: i.sku || '',
           quantity: i.quantity,
           price: i.price,
-          warehouse: i.warehouse || 'barcelona'
+          warehouse: i.warehouse || 'barcelona',
+          properties: i.properties || []
         }));
 
         const response = await fetch(`/api/orders/${encodeURIComponent(editingDraftId)}`, {
@@ -348,7 +359,7 @@ export default function CatalogPage() {
 
     const itemsByWarehouse = normalizedItems.reduce((acc, item) => {
       if (!acc[item.warehouse]) acc[item.warehouse] = [];
-      const itemPayload = { variantId: item.variantId, quantity: item.quantity };
+      const itemPayload = { variantId: item.variantId, quantity: item.quantity, properties: item.properties || [] };
       if (item.isCustomPrice || item.price !== undefined) {
         itemPayload.price = item.price;
       }
@@ -684,6 +695,7 @@ export default function CatalogPage() {
         cart={cart}
         onUpdateQty={handleUpdateCartQty}
         onUpdatePrice={handleUpdateCartPrice}
+        onUpdateNote={handleUpdateCartNote}
         onRemoveItem={handleRemoveCartItem}
         onClearCart={handleClearCart}
         onConfirmOrder={(note) => {

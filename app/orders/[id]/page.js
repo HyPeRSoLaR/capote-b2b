@@ -164,7 +164,10 @@ export default function OrderDetailPage() {
         isCustomPrice: true,
         quantity: item.quantity,
         warehouse: item.warehouse || 'barcelona',
-        image: item.image || ''
+        image: item.image || '',
+        properties: (item.customAttributes || [])
+          .filter(a => (a.key || '').toLowerCase() === 'note' && a.value)
+          .map(a => ({ key: 'Note', value: a.value }))
       };
     });
 
@@ -681,7 +684,13 @@ export default function OrderDetailPage() {
 
                 return (
                   <tr key={index}>
-                    <td style={{ padding: '14px 20px', fontWeight: 600 }}>{item.title}</td>
+                    <td style={{ padding: '14px 20px', fontWeight: 600 }}>
+                      {item.title}
+                      {(() => {
+                        const n = (item.customAttributes || []).find(a => (a.key || '').toLowerCase() === 'note')?.value;
+                        return n ? <div style={{ fontSize: 12, fontStyle: 'italic', fontWeight: 400, color: '#666', marginTop: 4, whiteSpace: 'pre-wrap' }}>📝 {n}</div> : null;
+                      })()}
+                    </td>
                     <td style={{ padding: '14px 20px' }}>
                       <span className="sku-text">{item.sku}</span>
                     </td>

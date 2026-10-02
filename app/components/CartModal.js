@@ -9,6 +9,7 @@ export default function CartModal({
   onClose,
   cart,
   onUpdateQty,
+  onUpdateNote,
   onUpdatePrice,
   onRemoveItem,
   onClearCart,
@@ -197,6 +198,24 @@ export default function CartModal({
                           ) : null;
                         })()}
                         
+                        {/* Per-product note */}
+                        {(() => {
+                          const lineNote = (item.properties || []).find(p => (p.key || '').toLowerCase() === 'note')?.value || '';
+                          if (!onUpdateNote) {
+                            return lineNote ? <div style={{ fontSize: '12px', fontStyle: 'italic', color: '#666', marginTop: '4px' }}>📝 {lineNote}</div> : null;
+                          }
+                          return (
+                            <input
+                              type="text"
+                              value={lineNote}
+                              maxLength={500}
+                              onChange={e => onUpdateNote(item.key, e.target.value)}
+                              placeholder="📝 Note for this model (e.g. optical lenses…)"
+                              style={{ width: '100%', marginTop: '6px', padding: '6px 8px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '4px', background: '#fff', fontFamily: 'inherit' }}
+                            />
+                          );
+                        })()}
+
                         {/* Unit Price Editing */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
                           <span style={{ fontSize: '12px', fontWeight: 600, color: '#1b5e20' }}>

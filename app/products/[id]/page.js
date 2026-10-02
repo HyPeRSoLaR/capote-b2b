@@ -164,6 +164,29 @@ export default function ProductConfiguratorPage() {
     if (next >= 1) setQuantity(next);
   };
 
+  const [lineNote, setLineNote] = useState('');
+
+  // Merge the per-model note: keep the old one if the new is empty, append if both differ.
+  const mergeLineNote = (existingProps, incoming) => {
+    const existing = (existingProps || []).find(p => (p.key || '').toLowerCase() === 'note')?.value || '';
+    const next = (incoming || '').trim();
+    let merged = existing;
+    if (next && !existing) merged = next;
+    else if (next && existing && !existing.includes(next)) merged = `${existing} | ${next}`;
+    merged = merged.slice(0, 500);
+    return merged ? [{ key: 'Note', value: merged }] : [];
+  };
+
+  const handleUpdateCartNote = (cartKey, text) => {
+    const updated = { ...cart };
+    if (updated[cartKey]) {
+      const t = (text || '').slice(0, 500);
+      updated[cartKey] = { ...updated[cartKey], properties: t.trim() ? [{ key: 'Note', value: t }] : [] };
+      setCart(updated);
+      localStorage.setItem('capote_b2b_cart', JSON.stringify(updated));
+    }
+  };
+
   const handleAddToCart = () => {
     if (!activeVariant) return;
     // Store the RAW variant price (same convention as the products list page).
@@ -186,11 +209,12 @@ export default function ProductConfiguratorPage() {
       image: activeVariant.image || product.image || null,
       productTitle: product.title,
       warehouse: selectedWarehouse,
-      properties: []
+      properties: mergeLineNote(newCart[cartKey]?.properties, lineNote)
     };
 
     setCart(newCart);
     localStorage.setItem('capote_b2b_cart', JSON.stringify(newCart));
+    setLineNote('');
 
     const unitPrice = activeVariant.b2bPrice != null
       ? activeVariant.b2bPrice
@@ -535,6 +559,22 @@ export default function ProductConfiguratorPage() {
 
             <hr style={{ border: 'none', borderTop: '1px solid var(--border)' }} />
 
+            {/* Per-model note (travels with the order line) */}
+            <div>
+              <label htmlFor="line-note" style={{ display: 'block', fontSize: 12, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 6 }}>
+                📝 Note for this model (optional)
+              </label>
+              <textarea
+                id="line-note"
+                value={lineNote}
+                onChange={e => setLineNote(e.target.value)}
+                maxLength={500}
+                rows={2}
+                placeholder="e.g. optical lenses -2.5 / -3.0, colour preference, display piece…"
+                style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13.5, fontFamily: 'inherit', resize: 'vertical', background: '#fff' }}
+              />
+            </div>
+
             {/* Quantity and Actions */}
             <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
               <div style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', background: '#fff', opacity: !activeVariant ? 0.5 : 1 }}>
@@ -626,6 +666,7 @@ export default function ProductConfiguratorPage() {
         cart={cart}
         onUpdateQty={handleUpdateCartQty}
         onUpdatePrice={handleUpdateCartPrice}
+        onUpdateNote={handleUpdateCartNote}
         onRemoveItem={handleRemoveCartItem}
         onClearCart={handleClearCart}
         onConfirmOrder={(note) => {
