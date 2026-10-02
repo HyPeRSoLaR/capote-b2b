@@ -18,6 +18,8 @@ function isAgentUser(session) {
   return isAgentSession(session.tags || []);
 }
 
+export const maxDuration = 60;
+
 export async function GET() {
   try {
     // 1. Authenticate B2B Session
@@ -36,82 +38,71 @@ export async function GET() {
       return NextResponse.json({ error: 'Access denied. Administrator or agent privileges required.' }, { status: 403 });
     }
 
-    // 2. Fetch B2B clients from Shopify
-    // We execute two queries in parallel:
-    // - b2bSearch: finds all indexed customers with B2B tags (up to 250 items).
-    // - recentCreated: pulls the 30 most recently created customers (bypassing search indexing lag).
-    // We then merge these two lists in memory.
-    const query = `
-      query {
-        b2bSearch: customers(first: 250, query: "tag:b2b_base OR tag:b2b_distributer OR tag:B2B-Partner OR tag:b2b-base OR tag:b2b OR tag:b2b_consignement_1") {
-          edges {
-            node {
-              id
-              firstName
-              lastName
-              email
-              tags
-              passcode: metafield(namespace: "b2b_portal", key: "passcode") {
-                value
-              }
-            }
-          }
-        }
-        recentCreated: customers(first: 30, sortKey: CREATED_AT, reverse: true) {
-          edges {
-            node {
-              id
-              firstName
-              lastName
-              email
-              tags
-              passcode: metafield(namespace: "b2b_portal", key: "passcode") {
-                value
-              }
-            }
-          }
-        }
-      }
+    // 2. Fetch B2B clients from Shopify — fully paginated (the store has thousands of B2B accounts;
+    // the old single page of 250 hid newer clients such as an agent's recent customers).
+    const NODE_FIELDS = `
+      id firstName lastName email tags numberOfOrders
+      defaultAddress { company city countryCodeV2 }
+      passcode: metafield(namespace: "b2b_portal", key: "passcode") { value }
     `;
-
-    const data = await shopifyGraphQL(query);
-    const b2bList = data.b2bSearch?.edges.map(e => edgeToCleanCustomer(e.node)) || [];
-    const recentList = data.recentCreated?.edges.map(e => edgeToCleanCustomer(e.node)) || [];
-
-    const mergedMap = new Map();
-    b2bList.forEach(c => mergedMap.set(c.id, c));
-    
-    recentList.forEach(c => {
-      const isB2B = c.tags?.some(tag => 
-        tag.toLowerCase().includes('b2b') || 
-        tag.toLowerCase().includes('wholesale') || 
-        tag.toLowerCase().includes('partner')
-      );
-      if (isB2B) {
-        mergedMap.set(c.id, c);
+    const fetchAll = async (searchQuery, maxPages) => {
+      const out = [];
+      let cursor = null;
+      for (let page = 0; page < maxPages; page++) {
+        const data = await shopifyGraphQL(
+          `query($q: String!, $after: String) {
+             customers(first: 250, query: $q, after: $after) {
+               edges { node { ${NODE_FIELDS} } }
+               pageInfo { hasNextPage endCursor }
+             }
+           }`,
+          { q: searchQuery, after: cursor }
+        );
+        const conn = data.customers;
+        (conn?.edges || []).forEach(e => out.push(edgeToCleanCustomer(e.node)));
+        if (!conn?.pageInfo?.hasNextPage) break;
+        cursor = conn.pageInfo.endCursor;
       }
-    });
+      return out;
+    };
 
-    let customers = Array.from(mergedMap.values());
-
+    let customers;
     if (!isAdmin && isAgent) {
-      // Match ONLY the agent's own agent_* ownership tags (e.g. agent_Kostas).
-      // The agent's client accounts carry the SAME agent_* tag. Generic tags like
-      // b2b_base are intentionally ignored so agents never see the whole base.
-      const myAgentTags = (session.tags || [])
-        .map(t => t.toLowerCase())
-        .filter(t => t.startsWith('agent_'));
-
-      customers = customers.filter(c => {
-        const cTags = (c.tags || []).map(t => t.toLowerCase());
-        const isMine = cTags.some(ct => ct.startsWith('agent_') && myAgentTags.includes(ct));
-        const isSelf = (c.email || '').toLowerCase() === (session.email || '').toLowerCase();
-        return isMine && !isSelf; // show the agent's clients, not the agent's own row
+      // Agents: query DIRECTLY by their own agent_* ownership tags (e.g. agent_Edouard).
+      // Generic tags like b2b_base are intentionally ignored so agents never see the whole base.
+      const myAgentTags = (session.tags || []).filter(t => String(t).toLowerCase().startsWith('agent_'));
+      if (myAgentTags.length === 0) {
+        return NextResponse.json({
+          success: true,
+          customers: [],
+          warning: 'Your account has no agent_<Name> tag, so no clients are linked to it. Please contact Capote.'
+        });
+      }
+      const tagQuery = myAgentTags.map(t => `tag:'${String(t).replace(/'/g, "\\'")}'`).join(' OR ');
+      const found = await fetchAll(tagQuery, 20);
+      const myLower = myAgentTags.map(t => t.toLowerCase());
+      customers = found
+        .filter(c => (c.tags || []).some(ct => myLower.includes(ct.toLowerCase())))
+        .filter(c => (c.email || '').toLowerCase() !== (session.email || '').toLowerCase()) // not the agent's own row
+        .map(({ passcode, ...rest }) => rest); // never expose stored passcodes to a non-admin session
+    } else {
+      const b2bQuery = 'tag:b2b_base OR tag:b2b_distributer OR tag:B2B-Partner OR tag:b2b-base OR tag:b2b OR tag:b2b_consignement_1';
+      customers = await fetchAll(b2bQuery, 20);
+      // Recently created accounts may not be indexed by tag search yet: merge the newest 30.
+      const recent = await shopifyGraphQL(
+        `query { customers(first: 30, sortKey: CREATED_AT, reverse: true) { edges { node { ${NODE_FIELDS} } } } }`
+      );
+      const known = new Set(customers.map(c => c.id));
+      (recent.customers?.edges || []).forEach(e => {
+        const c = edgeToCleanCustomer(e.node);
+        const isB2B = (c.tags || []).some(tag => /b2b|wholesale|partner/i.test(tag));
+        if (isB2B && !known.has(c.id)) customers.push(c);
       });
-
-      // Never expose stored passcodes to a non-admin session.
-      customers = customers.map(({ passcode, ...rest }) => rest);
     }
+
+    // Alphabetical by display name (company fallback), case/accent-insensitive.
+    const label = c => ([c.firstName, c.lastName].filter(Boolean).join(' ') || c.company || c.email || '').toLowerCase();
+    customers.sort((x, y) => label(x).localeCompare(label(y), 'fr', { sensitivity: 'base' }));
 
     return NextResponse.json({
       success: true,
@@ -147,7 +138,7 @@ export async function POST(request) {
 
     // 2. Parse payload
     const body = await request.json();
-    const { action, customerId, email, firstName, lastName, passcode, discountPercent } = body;
+    const { action, customerId, email, firstName, lastName, passcode, discountPercent, company, country } = body;
 
     // Agents may only act on THEIR OWN customers (carrying one of their agent_* tags),
     // never on admins/agents. Admins are unrestricted.
@@ -220,6 +211,15 @@ export async function POST(request) {
         firstName: (firstName || '').trim(),
         lastName: (lastName || '').trim(),
         tags: ['B2B-Partner', 'b2b_base', `B2B-Discount-${dPercent}`, ...creatorAgentTags],
+        // Country drives currency / warehouse / shipping when ordering for this client.
+        ...(/^[A-Za-z]{2}$/.test((country || '').trim()) ? {
+          addresses: [{
+            countryCode: country.trim().toUpperCase(),
+            company: (company || '').trim().slice(0, 100),
+            firstName: (firstName || '').trim(),
+            lastName: (lastName || '').trim()
+          }]
+        } : {}),
         metafields: [
           {
             namespace: "b2b_portal",
@@ -369,6 +369,10 @@ function edgeToCleanCustomer(node) {
     email: node.email || 'N/A',
     tags: tags,
     discountPercent,
-    passcode: node.passcode?.value || ''
+    passcode: node.passcode?.value || '',
+    orderCount: Number(node.numberOfOrders) || 0,
+    company: node.defaultAddress?.company || '',
+    city: node.defaultAddress?.city || '',
+    country: node.defaultAddress?.countryCodeV2 || ''
   };
 }
