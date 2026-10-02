@@ -122,22 +122,36 @@ export async function PUT(request, { params }) {
       }, { status: 409 });
     }
 
-    // Only admins may change prices or discounts. Non-admin owners may edit
-    // notes/quantities on their own draft, never unit prices or appliedDiscount.
+    // Non-admins (customers, agents) may never change prices, discounts or completed orders.
+    // They can only edit quantities / notes of lines that ALREADY exist on their own draft;
+    // prices are always taken from the stored draft, never from the request.
     if (!isAdmin) {
-      const body = await request.clone().json().catch(() => ({}));
-      const touchesPricing = body.appliedDiscount !== undefined ||
-        (Array.isArray(body.items) && body.items.some(it => it.price !== undefined));
-      if (touchesPricing) {
-        return NextResponse.json(
-          { error: 'Only Capote staff can change prices or discounts on an order.' },
-          { status: 403 }
-        );
+      const isDraftOrder = existingOrder.type === 'Draft';
+      if (!isDraftOrder) {
+        return NextResponse.json({ error: 'Only Capote staff can edit a confirmed order.' }, { status: 403 });
       }
     }
 
     const body = await request.json();
-    const { items, note, currency, appliedDiscount } = body;
+    const { note, currency } = body;
+    let { items, appliedDiscount } = body;
+    if (!isAdmin) {
+      appliedDiscount = undefined;
+      if (Array.isArray(items)) {
+        const stored = existingOrder.items || [];
+        const matched = [];
+        for (const it of items) {
+          const m = stored.find(e => (it.variantId && e.variantId && it.variantId === e.variantId) ||
+            (!it.variantId && it.sku && e.sku === it.sku && (e.title === it.title)));
+          if (!m) {
+            return NextResponse.json({ error: 'Adding new items to an existing order is handled by Capote staff. Please create a new order or contact us.' }, { status: 403 });
+          }
+          const qty = Math.max(1, parseInt(it.quantity, 10) || 1);
+          matched.push({ ...it, quantity: qty, price: m.price, unitPrice: undefined });
+        }
+        items = matched;
+      }
+    }
 
     if (!items || !Array.isArray(items)) {
       return NextResponse.json({ error: 'Invalid items array.' }, { status: 400 });
