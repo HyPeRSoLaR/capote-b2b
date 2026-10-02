@@ -311,8 +311,17 @@ export default function CatalogPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ items: payloadItems, note: finalNote, currency: selectedCurrency })
         });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Failed to update draft order.');
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          // Stale edit flag (draft of another customer, or draft no longer exists):
+          // drop the flag, keep the cart, never create a new order silently.
+          if (data.code === 'EDIT_OWNER_MISMATCH' || response.status === 404) {
+            localStorage.removeItem('capote_b2b_editing_draft_id');
+            localStorage.removeItem('capote_b2b_editing_draft_name');
+            throw new Error(`${data.error || 'This order can no longer be edited.'} Your cart is kept: click "Place Draft Order" to create a new order.`);
+          }
+          throw new Error(data.error || 'Failed to update draft order.');
+        }
 
         localStorage.removeItem('capote_b2b_editing_draft_id');
         localStorage.removeItem('capote_b2b_editing_draft_name');

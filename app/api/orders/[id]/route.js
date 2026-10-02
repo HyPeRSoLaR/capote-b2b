@@ -112,6 +112,16 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Access denied to this order.' }, { status: 403 });
     }
 
+    // A staff member impersonating a customer may only edit THAT customer's drafts.
+    // Protects against a stale "editing #D…" flag left in the browser from another client
+    // overwriting the wrong draft.
+    if (session.impersonatedBy && existingOrder.customer?.email?.toLowerCase() !== session.email?.toLowerCase()) {
+      return NextResponse.json({
+        error: `Order ${existingOrder.name} belongs to another customer — edit cancelled.`,
+        code: 'EDIT_OWNER_MISMATCH'
+      }, { status: 409 });
+    }
+
     // Only admins may change prices or discounts. Non-admin owners may edit
     // notes/quantities on their own draft, never unit prices or appliedDiscount.
     if (!isAdmin) {
