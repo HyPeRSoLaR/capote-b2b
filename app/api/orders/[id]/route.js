@@ -1,7 +1,28 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { decryptSession, isAgentSession } from '@/lib/session';
-import { getOrderById, getAgentClientEmails } from '@/lib/orders';
+import { getOrderById, getAgentClientEmails, mergeOrderNotes } from '@/lib/orders';
+import { getB2BCustomer } from '@/lib/shopify';
+
+const MASTER_ADMIN_EMAILS = ['info@capoteyewear.com', 'deanmoriarty190@gmail.com'];
+
+function hasAdminTag(tags = []) {
+  return (tags || []).some(t => ['b2b-admin', 'admin'].includes(String(t).toLowerCase()));
+}
+
+// An admin impersonating a customer carries the customer's tags in the session,
+// so the admin rights must be re-derived from the impersonator (session.impersonatedBy).
+async function isImpersonatingAdmin(session) {
+  const by = (session?.impersonatedBy || '').toLowerCase();
+  if (!by) return false;
+  if (MASTER_ADMIN_EMAILS.includes(by)) return true;
+  try {
+    const impersonator = await getB2BCustomer(by);
+    return hasAdminTag(impersonator?.tags);
+  } catch {
+    return false;
+  }
+}
 
 export async function GET(request, { params }) {
   try {
@@ -52,7 +73,12 @@ export async function GET(request, { params }) {
       }
     }
 
-    return NextResponse.json({ success: true, order });
+    // Order notes can hold internal staff comments: only Capote staff, agents, or a
+    // staff member impersonating the customer may see them.
+    const canSeeNotes = isAdmin || isAgentSession(session.tags || []) || !!session.impersonatedBy;
+    const safeOrder = canSeeNotes ? order : { ...order, note: '' };
+
+    return NextResponse.json({ success: true, order: safeOrder });
 
   } catch (err) {
     console.error('Order detail GET error:', err);
@@ -78,9 +104,9 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Order not found.' }, { status: 404 });
     }
 
-    const isAdmin = session.tags?.some(t => ['b2b-admin', 'admin'].includes(t.toLowerCase())) ||
-      session.email?.toLowerCase() === 'info@capoteyewear.com' ||
-      session.email?.toLowerCase() === 'deanmoriarty190@gmail.com';
+    const isAdmin = hasAdminTag(session.tags) ||
+      MASTER_ADMIN_EMAILS.includes((session.email || '').toLowerCase()) ||
+      await isImpersonatingAdmin(session);
 
     if (!isAdmin && existingOrder.customer?.email?.toLowerCase() !== session.email?.toLowerCase()) {
       return NextResponse.json({ error: 'Access denied to this order.' }, { status: 403 });
@@ -118,7 +144,9 @@ export async function PUT(request, { params }) {
 
     if (isDraft) {
       const draftOrderGid = `gid://shopify/DraftOrder/${numericId}`;
-      const updatedDraft = await updateDraftOrder(draftOrderGid, items, note || '', appliedDiscount);
+      // Append the new comment to the existing note instead of overwriting it.
+      const mergedNote = note ? mergeOrderNotes(existingOrder.note, note) : '';
+      const updatedDraft = await updateDraftOrder(draftOrderGid, items, mergedNote, appliedDiscount);
       return NextResponse.json({ success: true, draftOrder: updatedDraft });
     } else {
       const orderGid = `gid://shopify/Order/${numericId}`;

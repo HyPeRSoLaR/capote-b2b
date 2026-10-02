@@ -451,6 +451,24 @@ export default function OrderDetailPage() {
           ))}
         </div>
 
+        {/* Order notes (comments typed when placing / editing the order, or in Shopify Admin) */}
+        {order.note && (
+          <div style={{
+            background: '#fffaf0',
+            border: '1px solid #f0e2c4',
+            borderRadius: '8px',
+            padding: '14px 20px',
+            marginBottom: 24
+          }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', color: '#8a6d3b', marginBottom: 6 }}>
+              📝 Order notes
+            </div>
+            <div style={{ fontSize: '13.5px', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              {order.note}
+            </div>
+          </div>
+        )}
+
         {/* Action Buttons Row */}
         <div style={{
           background: '#f5f3ef',
