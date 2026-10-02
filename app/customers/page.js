@@ -27,6 +27,8 @@ export default function CustomersPage() {
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [newEmail, setNewEmail] = useState('');
+  const [newCompany, setNewCompany] = useState('');
+  const [newCountry, setNewCountry] = useState('');
   const [newFirstName, setNewFirstName] = useState('');
   const [newLastName, setNewLastName] = useState('');
   const [newPasscode, setNewPasscode] = useState('123456');
@@ -74,7 +76,7 @@ export default function CustomersPage() {
         const email = data.user?.email?.toLowerCase() || '';
         const isAdmin = tags.some(t => ['b2b-admin', 'admin'].includes(t.toLowerCase())) ||
           email === 'info@capoteyewear.com' || email === 'deanmoriarty190@gmail.com';
-        const isAgent = tags.some(t => t.toLowerCase().includes('agent') || t.toLowerCase() === 'kostas');
+        const isAgent = tags.some(t => ['agent', 'b2b-admin-agent'].includes(t.toLowerCase()));
         
         if (!isAdmin && !isAgent) {
           router.push('/dashboard');
@@ -99,7 +101,9 @@ export default function CustomersPage() {
       if (res.ok) {
         setCustomers(data.customers || []);
         setFilteredCustomers(data.customers || []);
+        if (data.warning) setError(data.warning);
       } else {
+        if (res.status === 401) { router.push('/auth/login'); return; }
         setError(data.error || 'Failed to load customers.');
       }
     } catch {
@@ -112,9 +116,8 @@ export default function CustomersPage() {
   useEffect(() => {
     const q = searchQuery.toLowerCase().trim();
     setFilteredCustomers(!q ? customers : customers.filter(c =>
-      (c.firstName || '').toLowerCase().includes(q) ||
-      (c.lastName || '').toLowerCase().includes(q) ||
-      (c.email || '').toLowerCase().includes(q)
+      [`${c.firstName || ''} ${c.lastName || ''}`, `${c.lastName || ''} ${c.firstName || ''}`, c.email, c.company, c.city, c.country]
+        .some(v => (v || '').toLowerCase().includes(q))
     ));
     setCustPage(1);
   }, [customers, searchQuery]);
@@ -179,6 +182,8 @@ export default function CustomersPage() {
         body: JSON.stringify({
           action: 'create',
           email: newEmail,
+          company: newCompany,
+          country: newCountry,
           firstName: newFirstName,
           lastName: newLastName,
           passcode: newPasscode,
@@ -193,6 +198,8 @@ export default function CustomersPage() {
         setSuccessMsg('✅ B2B partner customer created successfully.');
         setCreateModalOpen(false);
         setNewEmail('');
+        setNewCompany('');
+        setNewCountry('');
         setNewFirstName('');
         setNewLastName('');
         setNewPasscode('123456');
@@ -235,7 +242,7 @@ export default function CustomersPage() {
           <div className="page-title-row">
             <h1 className="page-title">Customers</h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span className="page-count">👥 <strong>{filteredCustomers.length}</strong> accounts</span>
+              {!error && <span className="page-count">👥 <strong>{filteredCustomers.length}</strong> accounts</span>}
               <button className="btn-primary" onClick={() => setCreateModalOpen(true)}>
                 👤 Add Customer
               </button>
@@ -263,7 +270,9 @@ export default function CustomersPage() {
           {customersLoading ? (
             <div style={{ padding: '60px', textAlign: 'center', color: '#9e9e9e', fontSize: '14px' }}>Loading customers…</div>
           ) : pagedCustomers.length === 0 ? (
-            <div style={{ padding: '60px', textAlign: 'center', color: '#9e9e9e', fontSize: '14px' }}>No customers found.</div>
+            <div style={{ padding: '60px', textAlign: 'center', color: '#9e9e9e', fontSize: '14px' }}>
+              {error ? (<button className="btn-primary" onClick={() => { setError(''); fetchB2BCustomers(); }}>Retry</button>) : 'No customers found.'}
+            </div>
           ) : (
             <>
               <table className="data-table">
@@ -283,7 +292,7 @@ export default function CustomersPage() {
                     const b2bTags = (customer.tags || []).filter(t =>
                       t.toLowerCase().includes('b2b') || t.toLowerCase().includes('wholesale') ||
                       t.toLowerCase() === 'shop' || t.toLowerCase().startsWith('agent') ||
-                      t.toLowerCase().startsWith('edouard') || t.toLowerCase().startsWith('8 agency')
+                      t.toLowerCase().startsWith('edouard') || t.toLowerCase().startsWith('8 agency') || t.toLowerCase().startsWith('distribut')
                     );
 
                     return (
@@ -291,7 +300,12 @@ export default function CustomersPage() {
                         <td>
                           <div className="customer-row">
                             <div className="customer-avatar">{getInitial(customer)}</div>
-                            <div style={{ fontWeight: 600 }}>{name}</div>
+                            <div>
+                              <div style={{ fontWeight: 600 }}>{name}</div>
+                              {(customer.company || customer.city) && (
+                                <div style={{ fontSize: '12px', color: '#9e9e9e' }}>{[customer.company, customer.city, customer.country].filter(Boolean).join(' · ')}</div>
+                              )}
+                            </div>
                           </div>
                         </td>
                         <td>
@@ -366,6 +380,16 @@ export default function CustomersPage() {
               <button className="modal-close" onClick={() => setEditingCustomer(null)}>✕</button>
             </div>
             <form onSubmit={handleUpdateCustomer}>
+              <div className="form-group" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
+                <div>
+                  <label className="form-label">Company / shop name</label>
+                  <input type="text" className="form-input" value={newCompany} onChange={e => setNewCompany(e.target.value)} placeholder="Les 2 Optiques" />
+                </div>
+                <div>
+                  <label className="form-label">Country code (required)</label>
+                  <input type="text" className="form-input" value={newCountry} onChange={e => setNewCountry(e.target.value.toUpperCase().slice(0, 2))} placeholder="FR" maxLength={2} required />
+                </div>
+              </div>
               <div className="form-group">
                 <label className="form-label">Login Passcode</label>
                 <input
