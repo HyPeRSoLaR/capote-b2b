@@ -207,6 +207,29 @@ export default function OrderDetailPage() {
     setEditableItems(updated);
   };
 
+  const [newNote, setNewNote] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
+  const handleAddNote = async () => {
+    setSavingNote(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/orders/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ noteOnly: true, note: newNote })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not save the note.');
+      setNewNote('');
+      setSaveSuccessMsg('✅ Note added.');
+      fetchOrderDetail();
+    } catch (err) {
+      setError(err.message || 'Could not save the note.');
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
   const handleSaveDraftChanges = async () => {
     setSavingDraft(true);
     setSaveSuccessMsg('');
@@ -453,6 +476,23 @@ export default function OrderDetailPage() {
             </div>
           ))}
         </div>
+
+        {/* Add a note to a draft (appended to the existing note, nothing else changes) */}
+        {isDraftOrder && (
+          <div style={{ marginBottom: 12, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <textarea
+              value={newNote}
+              onChange={e => setNewNote(e.target.value)}
+              rows={2}
+              maxLength={2000}
+              placeholder="Add a note to this order (e.g. optical lenses, special request)…"
+              style={{ flex: 1, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13.5, fontFamily: 'inherit', background: '#fff' }}
+            />
+            <button className="btn-primary" disabled={savingNote || !newNote.trim()} onClick={handleAddNote} style={{ padding: '10px 16px' }}>
+              {savingNote ? 'Saving…' : '📝 Add note'}
+            </button>
+          </div>
+        )}
 
         {/* Order notes (comments typed when placing / editing the order, or in Shopify Admin) */}
         {order.note && (
