@@ -277,11 +277,20 @@ export default function CatalogPage() {
   };
 
   // Checkout
-  const handleConfirmOrder = async () => {
+  const handleConfirmOrder = async (noteFromModal) => {
     const items = Object.values(cart);
     if (!items.length) return;
     setSubmitting(true);
     setError('');
+
+    // The cart-modal note is passed in directly: reading it back from React state
+    // right after setOrderNote() returned the stale (empty) value, so every note
+    // typed in the cart modal was silently dropped (SILMO drafts, 28-29 Sep 2026).
+    const finalNote = [orderNote, typeof noteFromModal === 'string' ? noteFromModal : '']
+      .map(s => (s || '').trim())
+      .filter(Boolean)
+      .filter((v, i, a) => a.indexOf(v) === i)
+      .join('\n');
 
     const editingDraftId = typeof window !== 'undefined' ? localStorage.getItem('capote_b2b_editing_draft_id') : null;
 
@@ -300,10 +309,19 @@ export default function CatalogPage() {
         const response = await fetch(`/api/orders/${encodeURIComponent(editingDraftId)}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ items: payloadItems, note: orderNote, currency: selectedCurrency })
+          body: JSON.stringify({ items: payloadItems, note: finalNote, currency: selectedCurrency })
         });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Failed to update draft order.');
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          // Stale edit flag (draft of another customer, or draft no longer exists):
+          // drop the flag, keep the cart, never create a new order silently.
+          if (data.code === 'EDIT_OWNER_MISMATCH' || response.status === 404) {
+            localStorage.removeItem('capote_b2b_editing_draft_id');
+            localStorage.removeItem('capote_b2b_editing_draft_name');
+            throw new Error(`${data.error || 'This order can no longer be edited.'} Your cart is kept: click "Place Draft Order" to create a new order.`);
+          }
+          throw new Error(data.error || 'Failed to update draft order.');
+        }
 
         localStorage.removeItem('capote_b2b_editing_draft_id');
         localStorage.removeItem('capote_b2b_editing_draft_name');
@@ -343,7 +361,7 @@ export default function CatalogPage() {
         const response = await fetch('/api/orders/draft', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ warehouse, items: warehouseItems, note: orderNote, currency: selectedCurrency })
+          body: JSON.stringify({ warehouse, items: warehouseItems, note: finalNote, currency: selectedCurrency })
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || `Failed for ${warehouse}.`);
@@ -669,9 +687,8 @@ export default function CatalogPage() {
         onRemoveItem={handleRemoveCartItem}
         onClearCart={handleClearCart}
         onConfirmOrder={(note) => {
-          if (note) setOrderNote(note);
           setCartModalOpen(false);
-          handleConfirmOrder();
+          handleConfirmOrder(note);
         }}
         submitting={submitting}
         discountPercent={discountPercent}

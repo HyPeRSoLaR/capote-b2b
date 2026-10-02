@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 import { calculateShippingCost } from '@/lib/shipping';
 
@@ -18,8 +18,23 @@ export default function CartModal({
   countryCode = 'ES'
 }) {
   const [note, setNote] = useState('');
+  const [, setEditFlagVersion] = useState(0);
+
+  // Once an order is placed the cart is emptied: clear the typed note so it is not
+  // carried over to the next customer's order.
+  const cartIsEmpty = !cart || Object.keys(cart).length === 0;
+  useEffect(() => {
+    if (cartIsEmpty) setNote('');
+  }, [cartIsEmpty]);
 
   if (!isOpen) return null;
+
+  const editingDraftName = typeof window !== 'undefined' ? localStorage.getItem('capote_b2b_editing_draft_name') : null;
+  const cancelEditing = () => {
+    localStorage.removeItem('capote_b2b_editing_draft_id');
+    localStorage.removeItem('capote_b2b_editing_draft_name');
+    setEditFlagVersion(v => v + 1);
+  };
 
   const cartKeys = Object.keys(cart || {});
   const cartItems = cartKeys.map(key => ({ key, ...cart[key] }));
@@ -369,13 +384,22 @@ export default function CartModal({
             >
               Clear Cart
             </button>
+            {editingDraftName && (
+              <button
+                onClick={cancelEditing}
+                title="Stop editing this order: the next confirmation will create a new order instead"
+                style={{ background: 'none', border: 'none', color: '#6b6b6b', fontSize: '12.5px', textDecoration: 'underline', cursor: 'pointer', padding: 0 }}
+              >
+                Cancel editing {editingDraftName}
+              </button>
+            )}
             <div style={{ display: 'flex', gap: '12px' }}>
               <button className="btn-secondary" onClick={onClose}>Continue Shopping</button>
               <button className="btn-primary" onClick={handlePlaceOrder} disabled={submitting}>
-                {submitting 
-                  ? 'Saving Changes…' 
-                  : (typeof window !== 'undefined' && localStorage.getItem('capote_b2b_editing_draft_name'))
-                    ? `🔄 Update Order ${localStorage.getItem('capote_b2b_editing_draft_name')}`
+                {submitting
+                  ? 'Saving Changes…'
+                  : editingDraftName
+                    ? `🔄 Update Order ${editingDraftName}`
                     : '🛒 Place Draft Order'}
               </button>
             </div>

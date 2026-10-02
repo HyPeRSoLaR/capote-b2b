@@ -254,9 +254,22 @@ export default function ProductConfiguratorPage() {
     localStorage.removeItem('capote_b2b_cart');
   };
 
-  const handleConfirmOrder = async () => {
+  const handleConfirmOrder = async (noteFromModal) => {
     const items = Object.values(cart);
     if (!items.length) return;
+
+    // Editing an existing draft must never create a new one from this page
+    // (that is how #D1137 duplicated #D1131). Send the user to the catalogue page,
+    // which updates the original draft.
+    const editingDraftName = typeof window !== 'undefined' ? localStorage.getItem('capote_b2b_editing_draft_name') : null;
+    if (typeof window !== 'undefined' && localStorage.getItem('capote_b2b_editing_draft_id')) {
+      setCartModalOpen(false);
+      alert(`You are editing order ${editingDraftName || ''}. To save it, open the cart from the Products page and click "Update Order". No new order was created.`);
+      router.push('/products');
+      return;
+    }
+
+    const orderNote = typeof noteFromModal === 'string' ? noteFromModal.trim() : '';
     setSubmitting(true);
     const normalizedItems = userAllowedWarehouses.length === 1
       ? items.map(item => ({ ...item, warehouse: userWarehouse }))
@@ -287,7 +300,7 @@ export default function ProductConfiguratorPage() {
         const response = await fetch('/api/orders/draft', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ warehouse, items: warehouseItems, currency: selectedCurrency })
+          body: JSON.stringify({ warehouse, items: warehouseItems, note: orderNote, currency: selectedCurrency })
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || `Failed for ${warehouse}.`);
@@ -615,9 +628,9 @@ export default function ProductConfiguratorPage() {
         onUpdatePrice={handleUpdateCartPrice}
         onRemoveItem={handleRemoveCartItem}
         onClearCart={handleClearCart}
-        onConfirmOrder={() => {
+        onConfirmOrder={(note) => {
           setCartModalOpen(false);
-          handleConfirmOrder();
+          handleConfirmOrder(note);
         }}
         submitting={submitting}
         discountPercent={discountPercent}
