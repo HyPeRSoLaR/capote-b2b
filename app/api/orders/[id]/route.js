@@ -133,6 +133,21 @@ export async function PUT(request, { params }) {
     }
 
     const body = await request.json();
+
+    // Note-only update (no line or price changes): append the text to the draft's note.
+    if (body.noteOnly) {
+      if (existingOrder.type !== 'Draft') {
+        return NextResponse.json({ error: 'Notes can only be added to draft orders.' }, { status: 400 });
+      }
+      const text = String(body.note || '').trim().slice(0, 2000);
+      if (!text) return NextResponse.json({ error: 'Empty note.' }, { status: 400 });
+      const { updateDraftOrderNote } = await import('@/lib/orders');
+      const merged = mergeOrderNotes(existingOrder.note, text);
+      const numeric = id.replace(/\D/g, '');
+      await updateDraftOrderNote(`gid://shopify/DraftOrder/${numeric}`, merged);
+      return NextResponse.json({ success: true, note: merged });
+    }
+
     const { note, currency } = body;
     let { items, appliedDiscount } = body;
     if (!isAdmin) {
