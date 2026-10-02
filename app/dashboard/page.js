@@ -55,13 +55,14 @@ export default function DashboardPage() {
       setSalesLoading(true);
       const res = await fetch(`/api/admin/sales?range=${salesRange}`);
       const data = await res.json();
-      if (res.ok) setSalesData(data);
-    } catch {}
+      if (res.ok) { setSalesData(data); setError(''); }
+      else setError(data.error || 'Could not load sales figures.');
+    } catch { setError('Could not load sales figures (connection error).'); }
     finally { setSalesLoading(false); }
   }
 
   const formatAmount = (amount, currency) => {
-    const sym = currency === 'JPY' ? '¥' : currency === 'CAD' ? 'CA$' : '€';
+    const sym = currency === 'JPY' ? '¥' : currency === 'CAD' ? 'CA$' : currency === 'USD' ? '$' : '€';
     return `${sym}${Number(amount).toLocaleString(undefined, { minimumFractionDigits: currency === 'JPY' ? 0 : 2 })}`;
   };
 
@@ -259,12 +260,14 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {error && <div style={{ background: '#fce8e6', color: '#c62828', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' }}>{error}</div>}
+
         {/* Stat Cards */}
         <div className="stat-cards-row">
           {[
             { label: 'PRODUCTS', value: salesData?.productCount ?? '…', icon: '⚙️', color: 'blue' },
             { label: 'CUSTOMERS', value: salesData?.customerCount ?? '…', icon: '👥', color: 'green' },
-            { label: 'ORDERS', value: salesData?.orderCount ?? '…', icon: '≡', color: 'purple' },
+            { label: 'ORDERS', value: (salesData?.metrics?.b2bCount ?? salesData?.orderCount ?? '…'), icon: '≡', color: 'purple' },
             { label: 'LAST SYNC', value: salesData?.lastSync ? new Date(salesData.lastSync).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—', icon: '🕐', color: 'orange' },
           ].map(card => (
             <div key={card.label} className={`stat-card ${card.color}`}>
