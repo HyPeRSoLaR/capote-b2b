@@ -55,7 +55,7 @@ export async function GET(request) {
             }
           }
         }
-        draftOrders(first: 100) {
+        draftOrders(first: 100, sortKey: UPDATED_AT, reverse: true) {
           edges {
             node {
               id

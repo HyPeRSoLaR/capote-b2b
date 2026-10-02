@@ -69,7 +69,7 @@ export default function OrdersHistoryPage() {
   }
 
 
-  const getCurrencySymbol = code => code === 'JPY' ? '¥' : code === 'CAD' ? 'CA$' : '€';
+  const getCurrencySymbol = code => code === 'JPY' ? '¥' : code === 'CAD' ? 'CA$' : code === 'USD' ? '$' : '€';
 
   const formatDate = isoString => {
     const d = new Date(isoString);
