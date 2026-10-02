@@ -110,6 +110,11 @@ export async function PATCH(request) {
       );
     }
 
+    // An impersonating agent/admin must not change the client's passcode.
+    if (session.impersonatedBy) {
+      return NextResponse.json({ error: 'Not allowed while impersonating a customer.' }, { status: 403 });
+    }
+
     // 2. Parse request body
     const body = await request.json();
     const { passcode } = body;

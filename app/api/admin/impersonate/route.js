@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { decryptSession, encryptSession } from '@/lib/session';
+import { decryptSession, encryptSession, isAgentSession } from '@/lib/session';
 import { shopifyGraphQL } from '@/lib/shopify';
 
 export async function POST(request) {
@@ -26,10 +26,15 @@ export async function POST(request) {
     const myAgentTags = (session.tags || [])
       .map(t => t.toLowerCase())
       .filter(t => t.startsWith('agent_'));
-    const isAgent = !isAdmin && myAgentTags.length > 0;
+    // Must be a real agent (bare `agent` tag) — a client carrying only agent_<Name> must NOT impersonate siblings.
+    const isAgent = !isAdmin && isAgentSession(session.tags || []) && myAgentTags.length > 0;
 
     if (!isAdmin && !isAgent) {
       return NextResponse.json({ error: 'Access denied.' }, { status: 403 });
+    }
+
+    if (!isAdmin && session.impersonatedBy) {
+      return NextResponse.json({ error: 'Stop the current impersonation first.' }, { status: 403 });
     }
 
     const body = await request.json();

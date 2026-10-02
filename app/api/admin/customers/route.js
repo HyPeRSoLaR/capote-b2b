@@ -149,8 +149,25 @@ export async function POST(request) {
     const body = await request.json();
     const { action, customerId, email, firstName, lastName, passcode, discountPercent } = body;
 
+    // Agents may only act on THEIR OWN customers (carrying one of their agent_* tags),
+    // never on admins/agents. Admins are unrestricted.
+    const assertCanManage = async (id) => {
+      if (isAdmin) return null;
+      const d = await shopifyGraphQL(`query($id: ID!){ customer(id:$id){ id tags } }`, { id });
+      const tTags = (d.customer?.tags || []).map(t => t.toLowerCase());
+      const mine = creatorAgentTags.map(t => t.toLowerCase());
+      const privileged = tTags.some(t => t === 'agent' || t === 'admin' || t.startsWith('b2b-admin'));
+      const owned = tTags.some(t => t.startsWith('agent_') && mine.includes(t));
+      if (!d.customer || privileged || !owned) {
+        return NextResponse.json({ error: 'You can only manage your own customers.' }, { status: 403 });
+      }
+      return null;
+    };
+
     // Support sending native account invite email
     if (action === 'send_invite' && customerId) {
+      const denied = await assertCanManage(customerId);
+      if (denied) return denied;
       const numericId = customerId.split('/').pop();
       try {
         await shopifyREST('POST', `/customers/${numericId}/send_invite.json`, {
@@ -174,8 +191,12 @@ export async function POST(request) {
         return NextResponse.json({ error: 'Email is required for creating a customer.' }, { status: 400 });
       }
 
+      if (!isAdmin && creatorAgentTags.length === 0) {
+        return NextResponse.json({ error: 'Your account has no agent_<Name> tag, so created customers could not be linked to you. Ask Capote to add it.' }, { status: 400 });
+      }
       const pCode = (passcode || '123456').trim();
-      const dPercent = discountPercent !== undefined ? parseInt(discountPercent) : 50;
+      let dPercent = discountPercent !== undefined ? parseInt(discountPercent) : 50;
+      if (!Number.isFinite(dPercent) || dPercent < 0 || dPercent > 100) dPercent = 50;
 
       const createMutation = `
         mutation customerCreate($input: CustomerInput!) {
@@ -242,6 +263,11 @@ export async function POST(request) {
         }
       }
     `;
+    const denied2 = await assertCanManage(customerId);
+    if (denied2) return denied2;
+    if (discountPercent !== undefined && (!Number.isFinite(parseInt(discountPercent)) || parseInt(discountPercent) < 0 || parseInt(discountPercent) > 100)) {
+      return NextResponse.json({ error: 'Invalid discount percentage.' }, { status: 400 });
+    }
     const getCustomerData = await shopifyGraphQL(getCustomerQuery, { id: customerId });
     const customer = getCustomerData.customer;
 
