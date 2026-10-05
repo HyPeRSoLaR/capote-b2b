@@ -312,7 +312,11 @@ export default function CatalogPage() {
           variantTitle: i.variantTitle || '',
           sku: i.sku || '',
           quantity: i.quantity,
-          price: i.price,
+          // Target B2B unit price: catalogue items keep the RAW retail in `price`
+          // (+ b2bPrice); only loaded/overridden lines carry the final price in `price`.
+          price: i.isCustomPrice
+            ? i.price
+            : (i.b2bPrice != null ? i.b2bPrice : i.price * (1 - (discountPercent || 50) / 100)),
           warehouse: i.warehouse || 'barcelona',
           properties: i.properties || []
         }));
