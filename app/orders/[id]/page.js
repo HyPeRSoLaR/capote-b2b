@@ -174,6 +174,7 @@ export default function OrderDetailPage() {
     localStorage.setItem('capote_b2b_cart', JSON.stringify(cartObj));
     localStorage.setItem('capote_b2b_editing_draft_id', id);
     localStorage.setItem('capote_b2b_editing_draft_name', order.name || '');
+    localStorage.setItem('capote_b2b_editing_draft_loaded_at', order.updatedAt || '');
     window.dispatchEvent(new Event('capote_cart_updated'));
 
     alert(`✅ Loaded items from ${order.name} into cart! You can now browse the catalog and add products (like Incubus). Click the Cart icon to update this draft order when ready.`);
@@ -242,6 +243,7 @@ export default function OrderDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           items: editableItems,
+          baseUpdatedAt: order?.updatedAt || undefined,
           currency: displayCurrency,
           appliedDiscount: numDiscountVal > 0 ? {
             value: numDiscountVal,

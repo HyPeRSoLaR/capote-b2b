@@ -148,6 +148,20 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ success: true, note: merged });
     }
 
+    // Stale-page guard: a page/cart loaded BEFORE the draft last changed (another tab,
+    // a fix, someone else's edit) would write back outdated prices and lines
+    // (D1119, 5 Oct 2026: stale page re-sent retail prices after the repricing fix).
+    if (body.baseUpdatedAt && existingOrder.type === 'Draft' && existingOrder.updatedAt) {
+      const base = Date.parse(body.baseUpdatedAt);
+      const current = Date.parse(existingOrder.updatedAt);
+      if (Number.isFinite(base) && Number.isFinite(current) && current - base > 1000) {
+        return NextResponse.json({
+          error: `${existingOrder.name} was modified since you opened it. Open the order again (reload with Cmd/Ctrl+Shift+R) to see the latest prices, then redo your change.`,
+          code: 'STALE_DRAFT'
+        }, { status: 409 });
+      }
+    }
+
     const { note, currency } = body;
     let { items, appliedDiscount } = body;
     if (!isAdmin) {

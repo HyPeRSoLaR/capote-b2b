@@ -34,6 +34,7 @@ export default function CartModal({
   const cancelEditing = () => {
     localStorage.removeItem('capote_b2b_editing_draft_id');
     localStorage.removeItem('capote_b2b_editing_draft_name');
+    localStorage.removeItem('capote_b2b_editing_draft_loaded_at');
     setEditFlagVersion(v => v + 1);
   };
 
