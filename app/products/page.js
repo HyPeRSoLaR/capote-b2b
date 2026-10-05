@@ -324,7 +324,7 @@ export default function CatalogPage() {
         const response = await fetch(`/api/orders/${encodeURIComponent(editingDraftId)}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ items: payloadItems, note: finalNote, currency: selectedCurrency })
+          body: JSON.stringify({ items: payloadItems, note: finalNote, currency: selectedCurrency, baseUpdatedAt: localStorage.getItem('capote_b2b_editing_draft_loaded_at') || undefined })
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
@@ -333,6 +333,7 @@ export default function CatalogPage() {
           if (data.code === 'EDIT_OWNER_MISMATCH' || response.status === 404) {
             localStorage.removeItem('capote_b2b_editing_draft_id');
             localStorage.removeItem('capote_b2b_editing_draft_name');
+            localStorage.removeItem('capote_b2b_editing_draft_loaded_at');
             throw new Error(`${data.error || 'This order can no longer be edited.'} Your cart is kept: click "Place Draft Order" to create a new order.`);
           }
           throw new Error(data.error || 'Failed to update draft order.');
@@ -340,6 +341,7 @@ export default function CatalogPage() {
 
         localStorage.removeItem('capote_b2b_editing_draft_id');
         localStorage.removeItem('capote_b2b_editing_draft_name');
+            localStorage.removeItem('capote_b2b_editing_draft_loaded_at');
         handleClearCart();
         setOrderNote('');
         setCartModalOpen(false);
